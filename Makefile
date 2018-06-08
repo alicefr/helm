@@ -78,26 +78,25 @@ docker-binary-rudder:
 .PHONY: docker-build-experimental
 docker-build-experimental: check-docker docker-binary docker-binary-rudder
 	docker build --rm -t ${IMAGE} rootfs -f rootfs/Dockerfile.experimental
-	docker tag ${IMAGE} ${MUTABLE_IMAGE}
+	docker tag ${IMAGE} ${386MUTABLE_IMAGE}
 	docker build --rm -t ${IMAGE_RUDDER} rootfs -f rootfs/Dockerfile.rudder
 	docker tag ${IMAGE_RUDDER} ${MUTABLE_IMAGE_RUDDER}
 
-.PHONY: docker-arch-binary
-docker-arch-binary:
+.PHONY: docker-cross-binary
+docker-cross-binary:
 	for target in $(TARGETS_DOCKER); do \
-		echo "Cross-compiling for arch $$target" ; \
-		GOOS=linux GOARCH=$$target CGO_ENABLED=0 $(GO) build -o $(BINDIR)/tiller $(GOFLAGS) -tags '$(TAGS)' -ldflags '$(LDFLAGS)' k8s.io/helm/cmd/tiller ; \
+		echo "Building tiller for arch $$target" ; \
+		mkdir -p rootfs/bin ; \
+		GOOS=linux GOARCH=$$target CGO_ENABLED=0 $(GO) build -o rootfs/bin/$$target/tiller $(GOFLAGS) -tags '$(TAGS)' -ldflags '$(LDFLAGS)' k8s.io/helm/cmd/tiller ; \
 	done
 
 .PHONY: docker-build-images
-docker-build-images: check-docker docker-arch-binary
+docker-build-images: check-docker docker-cross-binary
 	for target in $(TARGETS_DOCKER); do \
 		IMAGE=$(shell echo '$(IMAGE)' | sed 's/-[^:-]*:/-$$target:/g') ; \
 		MUTABLE_IMAGE=$(shell echo '$(MUTABLE_IMAGE)' | sed 's/-[^:-]*:/-$$target:/g') ; \
-		echo $$IMAGE ;  \
-		docker build --rm -t $$IMAGE rootfs
-		echo $$MUTABLE_IMAGE ; \
-	        docker tag $$IMAGE $$MUTABLE_IMAGE
+		docker build --rm --build-arg BIN_DIR=bin/$$target/ -t $$IMAGE rootfs; \
+	        docker tag $$IMAGE $$MUTABLE_IMAGE; \
 	done
 
 .PHONY: test
@@ -131,7 +130,7 @@ verify-docs: build
 
 .PHONY: clean
 clean:
-	@rm -rf $(BINDIR) ./rootfs/tiller ./_dist
+	@rm -rf $(BINDIR) ./rootfs/tiller ./rootfs/bin ./_dist
 
 .PHONY: coverage
 coverage:

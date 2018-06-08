@@ -13,12 +13,12 @@
 # limitations under the License.
 
 FROM alpine:3.7
-
+ARG BIN_DIR
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 
 ENV HOME /tmp
 
-COPY tiller /bin/tiller
+COPY ${BIN_DIR}tiller /bin/tiller
 
 EXPOSE 44134
 USER nobody
