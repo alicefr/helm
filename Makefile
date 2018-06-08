@@ -3,6 +3,7 @@ IMAGE_PREFIX      ?= kubernetes-helm
 SHORT_NAME        ?= tiller
 SHORT_NAME_RUDDER ?= rudder
 TARGETS           ?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le windows/amd64
+TARGETS_DOCKER    ?= amd64 arm arm64 ppc64le s390x
 DIST_DIRS         = find * -type d -exec
 APP               = helm
 
@@ -80,6 +81,24 @@ docker-build-experimental: check-docker docker-binary docker-binary-rudder
 	docker tag ${IMAGE} ${MUTABLE_IMAGE}
 	docker build --rm -t ${IMAGE_RUDDER} rootfs -f rootfs/Dockerfile.rudder
 	docker tag ${IMAGE_RUDDER} ${MUTABLE_IMAGE_RUDDER}
+
+.PHONY: docker-arch-binary
+docker-arch-binary:
+	for target in $(TARGETS_DOCKER); do \
+		echo "Cross-compiling for arch $$target" ; \
+		GOOS=linux GOARCH=$$target CGO_ENABLED=0 $(GO) build -o $(BINDIR)/tiller $(GOFLAGS) -tags '$(TAGS)' -ldflags '$(LDFLAGS)' k8s.io/helm/cmd/tiller ; \
+	done
+
+.PHONY: docker-build-images
+docker-build-images: check-docker docker-arch-binary
+	for target in $(TARGETS_DOCKER); do \
+		IMAGE=$(shell echo '$(IMAGE)' | sed 's/-[^:-]*:/-$$target:/g') ; \
+		MUTABLE_IMAGE=$(shell echo '$(MUTABLE_IMAGE)' | sed 's/-[^:-]*:/-$$target:/g') ; \
+		echo $$IMAGE ;  \
+		docker build --rm -t $$IMAGE rootfs
+		echo $$MUTABLE_IMAGE ; \
+	        docker tag $$IMAGE $$MUTABLE_IMAGE
+	done
 
 .PHONY: test
 test: build
